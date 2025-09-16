@@ -39,8 +39,10 @@
     <p class="meq-desc">각 문항에서 본인에게 가장 가까운 보기를 선택하세요. <b>"결과 보기"</b>를 누르면 총점과 유형이 바로 표시됩니다. (MEQ 기준: 70점 이상=아침형, 42~69=중간형, 41점 이하=저녁형)</p>
   </div>
 
+  <!-- 문항은 JS로 주입해 길이 절약 -->
   <div id="qRoot"></div>
 
+  <!-- ▶ 버튼 바로 아래 결과 영역 -->
   <div class="meq-actions">
     <button class="meq-btn primary" id="meqCalcBtn" type="button">결과 보기</button>
     <button class="meq-btn secondary" id="meqResetBtn" type="button">다시 시작</button>
@@ -55,7 +57,7 @@
 </div>
 
 <script>
-// --- 부모(티스토리)로 높이 전송(선택)
+// --- 부모(티스토리) iframe 자동 높이 전송(선택)
 function sendHeight(){
   var h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
   try{ parent.postMessage({type:'MEQ_HEIGHT', height:h}, '*'); }catch(e){}
@@ -163,7 +165,7 @@ new ResizeObserver(sendHeight).observe(document.body);
   }
   function mapScore(q, v){
     if(v==null) return 0;
-    // 역매핑: 5,6,11,12,13,14,19
+    // 역매핑 필요한 문항: 5,6,11,12,13,14,19
     if([5,6,11,12,13,14,19].includes(q)) return reverseMap(v);
     return v;
   }
@@ -196,14 +198,15 @@ new ResizeObserver(sendHeight).observe(document.body);
     meterBar.style.width = pct + "%";
     advice.textContent = info.msg;
 
-    resultBox.style.display = "block";
+    resultBox.style.display = "block";           // ▶ 버튼 바로 아래에서 표시
     resultBox.scrollIntoView({behavior:"smooth", block:"center"});
     sendHeight();
   }
 
   function resetAll(){
     app.querySelectorAll('input[type="radio"]:checked').forEach(el=>el.checked=false);
-    app.querySelectorAll('input[type="radio"]').forEach(el=>el.dataset.was="0"); /* ← 오타 수정됨 */
+    app.querySelectorAll('input[type="radio"]').forEach(el=>el.dataset.was="0";
+    );
     resultBox.style.display="none";
     meterBar.style.width="0%";
     advice.textContent="";
