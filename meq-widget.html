@@ -204,18 +204,17 @@ new ResizeObserver(sendHeight).observe(document.body);
   }
 
   function resetAll(){
-    app.querySelectorAll('input[type="radio"]:checked').forEach(el=>el.checked=false);
-    app.querySelectorAll('input[type="radio"]').forEach(el=>el.dataset.was="0";
-    );
-    resultBox.style.display="none";
-    meterBar.style.width="0%";
-    advice.textContent="";
-    scoreEl.textContent="0";
-    badge.textContent="유형";
-    badge.className="meq-badge";
-    window.scrollTo({top:0,behavior:"smooth"});
-    sendHeight();
-  }
+  app.querySelectorAll('input[type="radio"]:checked').forEach(el => el.checked = false);
+  app.querySelectorAll('input[type="radio"]').forEach(el => el.dataset.was = "0");
+  resultBox.style.display = "none";
+  meterBar.style.width = "0%";
+  advice.textContent = "";
+  scoreEl.textContent = "0";
+  badge.textContent = "유형";
+  badge.className = "meq-badge";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  sendHeight();
+}
 
   calcBtn.addEventListener("click", calc);
   resetBtn.addEventListener("click", resetAll);
