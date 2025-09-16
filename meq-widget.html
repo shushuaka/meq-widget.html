@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MEQ 아침형·저녁형 인간 테스트</title>
+<style>
+  :root{color-scheme:light}
+  body{margin:0;background:#fff}
+  .meq-wrap{max-width:900px;margin:0 auto;padding:20px;border:1px solid #e5e7eb;border-radius:14px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif}
+  .meq-title{font-size:1.4rem;font-weight:800;margin:0 0 6px}
+  .meq-desc{color:#4b5563;margin:0 0 18px}
+  .meq-q{border-top:1px solid #f1f5f9;padding:16px 0}
+  .meq-q:first-of-type{border-top:0}
+  .meq-q h4{margin:0 0 10px;font-size:1.02rem}
+  .meq-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .meq-opt{display:flex;align-items:flex-start;gap:8px;padding:10px;border:1px solid #e5e7eb;border-radius:10px;cursor:pointer;user-select:none}
+  .meq-opt:hover{background:#f9fafb}
+  .meq-opt input{margin-top:3px}
+  .meq-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .meq-btn{padding:10px 14px;border:0;border-radius:10px;cursor:pointer;font-weight:700}
+  .meq-btn.primary{background:#2563eb;color:#fff}
+  .meq-btn.secondary{background:#e5e7eb;color:#111827}
+  .meq-result{margin-top:18px;padding:14px;border:1px solid #dbeafe;background:#eff6ff;border-radius:10px;display:none}
+  .meq-result h5{margin:0 0 8px;font-size:1.05rem}
+  .meq-meter{height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-top:8px}
+  .meq-meter>span{display:block;height:100%;background:#2563eb;width:0%}
+  .meq-badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:.85rem;font-weight:800;margin-left:6px}
+  .type-morning{background:#16a34a20;color:#166534;border:1px solid #16a34a55}
+  .type-evening{background:#e11d4820;color:#9f1239;border:1px solid #e11d4855}
+  .type-neutral{background:#f59e0b20;color:#92400e;border:1px solid #f59e0b55}
+  @media (max-width:640px){.meq-opts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="meq-wrap" id="meqApp" role="application" aria-label="MEQ 아침형·저녁형 인간 테스트">
+  <div>
+    <h2 class="meq-title"><strong>MEQ 아침형·저녁형 인간 테스트</strong></h2>
+    <p class="meq-desc">각 문항에서 본인에게 가장 가까운 보기를 선택하세요. <b>"결과 보기"</b>를 누르면 총점과 유형이 바로 표시됩니다. (MEQ 기준: 70점 이상=아침형, 42~69=중간형, 41점 이하=저녁형)</p>
+  </div>
+
+  <!-- 문항은 JS로 주입해 길이 절약 -->
+  <div id="qRoot"></div>
+
+  <!-- ▶ 버튼 바로 아래 결과 영역 -->
+  <div class="meq-actions">
+    <button class="meq-btn primary" id="meqCalcBtn" type="button">결과 보기</button>
+    <button class="meq-btn secondary" id="meqResetBtn" type="button">다시 시작</button>
+  </div>
+
+  <div class="meq-result" id="meqResult" aria-live="polite">
+    <h5>테스트 결과 <span id="meqTypeBadge" class="meq-badge">유형</span></h5>
+    <div>총점: <b id="meqScore">0</b>점 / 최대 76점</div>
+    <div class="meq-meter"><span id="meqMeterBar"></span></div>
+    <p id="meqAdvice" style="margin:10px 0 0;color:#374151"></p>
+  </div>
+</div>
+
+<script>
+// --- 부모(티스토리) iframe 자동 높이 전송(선택사항: 넣어두면 편함)
+function sendHeight(){
+  var h = Math.max(
+    document.documentElement.scrollHeight,
+    document.body.scrollHeight
+  );
+  try{ parent.postMessage({type:'MEQ_HEIGHT', height:h}, '*'); }catch(e){}
+}
+window.addEventListener('load', sendHeight);
+new ResizeObserver(sendHeight).observe(document.body);
+
+// --- 문항 렌더링
+(function(){
+  const labels = {
+    1:["① 매우 힘들다","② 조금 힘들다","③ 비교적 쉽다","④ 매우 쉽다"],
+    2:["① 전혀 활발하지 않다","② 조금 활발하다","③ 보통이다","④ 매우 활발하다"],
+    3:["① 매우 불쾌하다","② 조금 불쾌하다","③ 그럭저럭 괜찮다","④ 매우 상쾌하다"],
+    4:["① 전혀 못 한다","② 조금 어렵다","③ 그럭저럭 할 수 있다","④ 무리 없이 가능하다"],
+    5:["① 오전 5시 이전","② 오전 6시 전후","③ 오전 7시 전후","④ 오전 8시 이후"],
+    6:["① 오후 9시 이전","② 오후 10~11시","③ 자정 전후","④ 새벽 1시 이후"],
+    7:["① 전혀 없다","② 가끔 있다","③ 자주 있다","④ 거의 항상 그렇다"],
+    8:["① 항상 다시 잔다","② 보통 다시 잔다","③ 가끔만 잔다","④ 거의 다시 자지 않는다"],
+    9:["① 거의 집중 못 한다","② 조금 집중된다","③ 꽤 집중된다","④ 매우 집중된다"],
+    10:["① 매우 좋다","② 꽤 좋다","③ 보통이다","④ 거의 집중 못 한다"],
+    11:["① 오전 6~8시","② 오전 9~11시","③ 오후 3~5시","④ 오후 8시 이후"],
+    12:["① 오전 일찍","② 오전 늦게","③ 오후 늦게","④ 밤늦게"],
+    13:["① 이른 아침","② 오전","③ 오후","④ 저녁 이후"],
+    14:["① 오전 8시 이전","② 오전 9~11시","③ 오후 3~5시","④ 오후 8시 이후"],
+    15:["① 매우 나쁠 것 같다","② 보통일 것 같다","③ 꽤 좋을 것 같다","④ 매우 좋을 것 같다"],
+    16:["① 매우 좋을 것 같다","② 꽤 좋을 것 같다","③ 보통일 것 같다","④ 매우 나쁠 것 같다"],
+    17:["① 매우 활발하다","② 꽤 활발하다","③ 보통이다","④ 거의 힘들다"],
+    18:["① 매우 힘들다","② 조금 힘들다","③ 꽤 괜찮다","④ 매우 활발하다"],
+    19:["① 확실히 아침형 인간","② 약간 아침형 인간","③ 약간 저녁형 인간","④ 확실히 저녁형 인간"]
+  };
+  const titles = {
+    1:"1. 아침에 일어나기가 얼마나 쉬운가요?",
+    2:"2. 아침에 일어나 한 시간 이내에 얼마나 활발한가요?",
+    3:"3. 아침에 일찍 일어나야 할 때 기분이 어떤가요?",
+    4:"4. 기상 직후 바로 활동을 시작할 수 있는가요?",
+    5:"5. 평일에 스스로 정한다면, 보통 몇 시쯤 기상하겠습니까?",
+    6:"6. 평일에 스스로 정한다면, 보통 몇 시쯤 취침하겠습니까?",
+    7:"7. 평일에 일어나야 할 때, 알람 없이 일어나는 경우가 많나요?",
+    8:"8. 일어나야 할 시각보다 일찍 깬 경우, 다시 잠드는 것은 어떤가요?",
+    9:"9. 오전 10시쯤의 집중력은 어떤가요?",
+    10:"10. 오후 11시쯤의 집중력은 어떤가요?",
+    11:"11. 언제 가장 활력이 넘치나요?",
+    12:"12. 피곤하지 않은 상태라면 언제 가장 잘 집중할 수 있나요?",
+    13:"13. 하루 중 언제 공부/업무 성과가 가장 좋은가요?",
+    14:"14. 운동 경기에서 최고의 성과를 낼 수 있는 시간대는?",
+    15:"15. 아침에 시험을 본다면 성적이 어떨 것 같나요?",
+    16:"16. 저녁에 시험을 본다면 성적이 어떨 것 같나요?",
+    17:"17. 저녁에 활동해야 할 때 컨디션은 어떤가요?",
+    18:"18. 아침에 활동해야 할 때 컨디션은 어떤가요?",
+    19:"19. 본인이 스스로 생각할 때, 어떤 유형에 가깝다고 생각하나요?"
+  };
+  const root = document.getElementById("qRoot");
+  for(let q=1;q<=19;q++){
+    const d=document.createElement("div");
+    d.className="meq-q"; d.dataset.q=q;
+    d.innerHTML = `
+      <h4>${titles[q]}</h4>
+      <div class="meq-opts">
+        ${labels[q].map((txt,i)=>`<label class="meq-opt"><input type="radio" name="q${q}" value="${i+1}">${txt}</label>`).join("")}
+      </div>
+    `;
+    root.appendChild(d);
+  }
+  sendHeight();
+})();
+
+// --- 라디오 재클릭 해제(토글)
+(function(){
+  const app = document.getElementById("meqApp");
+  app.addEventListener("mousedown",(e)=>{
+    const t=e.target;
+    if(t && t.matches('input[type="radio"]')){
+      t.dataset.was = t.checked ? "1" : "0";
+    }
+  }, true);
+  app.addEventListener("click",(e)=>{
+    const t=e.target;
+    if(t && t.matches('input[type="radio"]')){
+      if(t.dataset.was==="1"){
+        t.checked=false;
+        t.dispatchEvent(new Event("change",{bubbles:true}));
+      }
+      const peers=app.querySelectorAll('input[name="'+t.name+'"]');
+      peers.forEach(el=>{ if(el!==t) el.dataset.was="0"; });
+    }
+  });
+})();
+
+// --- 점수 계산 & 결과 표시(버튼 바로 아래)
+(function(){
+  const app = document.getElementById("meqApp");
+  const resultBox = document.getElementById("meqResult");
+  const scoreEl = document.getElementById("meqScore");
+  const meterBar = document.getElementById("meqMeterBar");
+  const badge = document.getElementById("meqTypeBadge");
+  const advice = document.getElementById("meqAdvice");
+  const calcBtn = document.getElementById("meqCalcBtn");
+  const resetBtn = document.getElementById("meqResetBtn");
+
+  const reverseMap = (v)=>({1:4,2:3,3:2,4:1}[v]); // 1↔4, 2↔3
+
+  function getVal(name){
+    const el = app.querySelector('input[name="'+name+'"]:checked');
+    return el ? parseInt(el.value,10) : null;
+  }
+  function mapScore(q, v){
+    if(v==null) return 0;
+    // 역매핑 필요한 문항: 5,6,11,12,13,14,19
+    if([5,6,11,12,13,14,19].includes(q)) return reverseMap(v);
+    return v;
+  }
+  function classify(total){
+    if(total >= 70) return {type:"아침형", cls:"type-morning",
+      msg:"아침 시간대에 에너지와 집중력이 좋은 편입니다. 오전 루틴(운동·계획·집중업무)을 적극 활용해 보세요."};
+    if(total <= 41) return {type:"저녁형", cls:"type-evening",
+      msg:"늦은 오후~밤에 컨디션이 오르는 편입니다. 사회적 일정과의 충돌을 줄이도록 수면 위생을 관리해 보세요."};
+    return {type:"중간형", cls:"type-neutral",
+      msg:"아침·저녁 모두 큰 편차 없이 적응 가능한 타입입니다. 일정에 맞춰 루틴을 유연하게 설계해 보세요."};
+  }
+
+  function calc(){
+    let total=0, answered=0;
+    for(let q=1;q<=19;q++){
+      const v=getVal("q"+q);
+      if(v!=null) answered++;
+      total += mapScore(q, v);
+    }
+    if(answered < 19){
+      alert("아직 선택하지 않은 문항이 있습니다. (현재 "+answered+"/19)");
+      return;
+    }
+    const pct = Math.round(total/76*100);
+    const info = classify(total);
+
+    scoreEl.textContent = total;
+    badge.textContent = info.type;
+    badge.className = "meq-badge " + (info.cls || "");
+    meterBar.style.width = pct + "%";
+    advice.textContent = info.msg;
+
+    resultBox.style.display = "block";           // ▶ 버튼 바로 아래에서 표시
+    resultBox.scrollIntoView({behavior:"smooth", block:"center"});
+    sendHeight();
+  }
+
+  function resetAll(){
+    app.querySelectorAll('input[type="radio"]:checked').forEach(el=>el.checked=false);
+    app.querySelectorAll('input[type="radio"]').forEach(el=>el.dataset.was="0");
+    resultBox.style.display="none";
+    meterBar.style.width="0%";
+    advice.textContent="";
+    scoreEl.textContent="0";
+    badge.textContent="유형";
+    badge.className="meq-badge";
+    window.scrollTo({top:0,behavior:"smooth"});
+    sendHeight();
+  }
+
+  calcBtn.addEventListener("click", calc);
+  resetBtn.addEventListener("click", resetAll);
+})();
+</script>
+</body>
+</html>
